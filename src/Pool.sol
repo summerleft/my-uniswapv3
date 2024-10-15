@@ -10,6 +10,14 @@ contract Pool {
     int24 public immutable tickSpacing;
     uint128 public immutable maxLiquidityPerTick;
 
+    struct Slot0 {
+        uint160 sqrtPriceX96;
+        int24 tick;
+        bool unlocked;
+    }
+
+    Slot0 public slot0;
+
     constructor(
         address _token0,
         address _token1,
@@ -26,6 +34,12 @@ contract Pool {
     }
 
     function initialize(uint160 sqrtPriceX96) external {
-        
+        require(slot0.sqrtPriceX96 == 0, 'Already initialized');
+        int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+        slot0 = Slot0({
+            sqrtPriceX96: sqrtPriceX96,
+            tick: tick,
+            unlocked: true
+        });
     }
 }
