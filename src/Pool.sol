@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "./interfaces/IERC20.sol";
 import "./lib/Tick.sol";
 import "./lib/Position.sol";
 import "./lib/SafeCast.sol";
-import "./interfaces/IERC20.sol";
+import "./lib/TickMath.sol";
+
+function checkTick(int24 tickLower, int24 tickUpper) pure {
+    require(tickLower < tickUpper);
+    require(tickLower >= TickMath.MIN_TICK);
+    require(tickUpper <= TickMath.MAX_TICK);
+}
 
 contract Pool {
     using SafeCast for int256;
+    using Position for mapping(bytes32 => Position.Info);
+    using Position for Position.Info;
     address public immutable token0;
     address public immutable token1;
     uint24 public immutable fee;
@@ -55,6 +64,23 @@ contract Pool {
         });
     }
 
+    function _updatePosition(
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        int128 liquidityDelta,
+        int24 tick
+    ) private returns (Position.Info storage position) {
+        position = positions.get(owner, tickLower, tickUpper);
+
+        // TODO fees
+        uint256 _feeGrowthGlobal0X128 = 0;
+        uint256 _feeGrowthGlobal1X128 = 0;
+
+        // TODO fees
+        position.update(liquidityDelta, 0, 0);
+    }
+
     struct ModifyPositionParams {
         address owner;
         int24 tickLower;
@@ -66,6 +92,15 @@ contract Pool {
         private
         returns(Position.Info storage position, int256 amount0, int256 amount1)
     {
+        checkTick(params.tickLower, params.tickUpper);
+        Slot0 memory _slot0 = slot0;
+        position = _updatePosition(
+            params.owner,
+            params.tickUpper,
+            params.tickLower,
+            params.liquidityDelta,
+            _slot0.tick
+        );
         return (positions[bytes32(0)], 0, 0);
     }
 
