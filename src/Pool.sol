@@ -15,6 +15,7 @@ function checkTick(int24 tickLower, int24 tickUpper) pure {
 
 contract Pool {
     using SafeCast for int256;
+    using Tick for mapping(int24 => Tick.Info);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
     address public immutable token0;
@@ -30,6 +31,7 @@ contract Pool {
     }
 
     Slot0 public slot0;
+    mapping(int24 => Tick.Info) public ticks;
     mapping(bytes32 => Position.Info) public positions;
 
     constructor(
@@ -77,8 +79,40 @@ contract Pool {
         uint256 _feeGrowthGlobal0X128 = 0;
         uint256 _feeGrowthGlobal1X128 = 0;
 
+        bool flippedLower;
+        bool flippedUpper;
+        if (liquidityDelta != 0) {
+            flippedLower = ticks.update(
+                tickLower,
+                tick,
+                liquidityDelta, 
+                _feeGrowthGlobal0X128,
+                _feeGrowthGlobal1X128,
+                false,
+                maxLiquidityPerTick
+            );
+            flippedUpper = ticks.update(
+                tickUpper,
+                tick,
+                liquidityDelta, 
+                _feeGrowthGlobal0X128,
+                _feeGrowthGlobal1X128,
+                true,
+                maxLiquidityPerTick
+            );
+        }
+
         // TODO fees
         position.update(liquidityDelta, 0, 0);
+
+        if (liquidityDelta < 0) {
+            if (flippedLower) {
+                ticks.clear(tickLower);
+            }
+            if (flippedUpper) {
+                ticks.clear(tickUpper);
+            }
+        }
     }
 
     struct ModifyPositionParams {
@@ -101,6 +135,9 @@ contract Pool {
             params.liquidityDelta,
             _slot0.tick
         );
+
+        
+
         return (positions[bytes32(0)], 0, 0);
     }
 
