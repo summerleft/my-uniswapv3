@@ -196,6 +196,32 @@ contract Pool {
         if (amount1 > 0) {
             IERC20(token1).transferFrom(msg.sender, address(this), amount1);
         }
+    }
+
+    function collect() external {}
+
+    function burn(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 amount
+    ) external lock returns (uint256 amount0, uint256 amount1) {
+        (Position.Info storage position, int256 amount0Int, int256 amount1Int) =
+        _modifyPosition(ModifyPositionParams({
+            owner: msg.sender,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            liquidityDelta: -int256(uint256(amount)).toInt128()
+        }));
+
+        amount0 = uint256(-amount0Int);
+        amount1 = uint256(-amount1Int);
+
+        if (amount0 > 0 || amount1 > 0) {
+            (position.tokensOwed0, position.tokensOwed1) = (
+                position.tokensOwed0 + uint128(amount0),
+                position.tokensOwed1 + uint128(amount1)
+            );
+        }
 
     }
 }
