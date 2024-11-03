@@ -87,5 +87,20 @@ library SwapMath {
         if (!exactIn && amountOut > uint256(-amountRemaining)) {
             amountOut = uint256(-amountRemaining);
         }
+
+        if (exactIn && sqrtRatioNextX96 != sqrtRatioTargetX96) {
+            feeAmount = uint256(amountRemaining) - amountIn;
+        } else {
+            // a = amountIn
+            // f = feePips
+            // x = Amount in need to put amountIn + fee
+            // fee = x * f
+
+            // x = a + fee = a + x * f
+            // x*(1-f) = a
+            // x = a / (1 - f)
+            // fee = x*f = a / (1 - f) * f
+            feeAmount = FullMath.mulDivRoundingUp(amountIn, feePips, 1e6 - feePips);
+        }
     }
 }
