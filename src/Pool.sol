@@ -6,6 +6,7 @@ import "./lib/Tick.sol";
 import "./lib/Position.sol";
 import "./lib/SafeCast.sol";
 import "./lib/TickMath.sol";
+import "./lib/TickBitmap.sol";
 import "./lib/SqrtPriceMath.sol";
 import "./lib/SwapMath.sol";
 
@@ -19,6 +20,7 @@ contract Pool {
     using SafeCast for int256;
     using SafeCast for uint256;
     using Tick for mapping(int24 => Tick.Info);
+    using TickBitmap for mapping(int16 => uint256);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
     address public immutable token0;
@@ -38,6 +40,7 @@ contract Pool {
     uint256 public feeGrowthGlobal1X128;
     uint128 public liquidity;
     mapping(int24 => Tick.Info) public ticks;
+    mapping(int16 => uint256) public tickBitmap;
     mapping(bytes32 => Position.Info) public positions;
 
     constructor(
@@ -106,6 +109,12 @@ contract Pool {
                 true,
                 maxLiquidityPerTick
             );
+            if (flippedLower) {
+                tickBitmap.flipTick(tickLower, tickSpacing);
+            }
+            if (flippedUpper) {
+                tickBitmap.flipTick(tickUpper, tickSpacing);
+            }
         }
 
         // TODO fees
@@ -326,8 +335,19 @@ contract Pool {
 
             step.sqrtPriceStartX96 = state.sqrtPriceX96;
 
-            // TODO: next initialized tick
-            step.tickNext = state.tick + 1;
+            // step.tickNext = state.tick + 1;
+            (step.tickNext, step.initialized) = tickBitmap.nextInitializedTickWithinOneWord(
+                state.tick,
+                tickSpacing,
+                zeroForOne
+            );
+            // Bond tick next
+            if (step.tickNext < TickMath.MIN_TICK) {
+                step.tickNext = TickMath.MIN_TICK;
+            } else if (step.tickNext > TickMath.MAX_TICK) {
+                step.tickNext = TickMath.MAX_TICK;
+            }
+            
             step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick((step.tickNext));
 
             (state.sqrtPriceX96, step.amountIn, step.amountOut, step.feeAmount) = SwapMath.computeSwapStep(
