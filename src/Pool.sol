@@ -335,7 +335,6 @@ contract Pool {
 
             step.sqrtPriceStartX96 = state.sqrtPriceX96;
 
-            // step.tickNext = state.tick + 1;
             (step.tickNext, step.initialized) = tickBitmap.nextInitializedTickWithinOneWord(
                 state.tick,
                 tickSpacing,
@@ -348,7 +347,7 @@ contract Pool {
                 step.tickNext = TickMath.MAX_TICK;
             }
             
-            step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick((step.tickNext));
+            step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick(step.tickNext);
 
             (state.sqrtPriceX96, step.amountIn, step.amountOut, step.feeAmount) = SwapMath.computeSwapStep(
                 state.sqrtPriceX96,
@@ -370,8 +369,32 @@ contract Pool {
 
             // TODO: calculate global fee tracker
 
+            
             // TODO
-            if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {   
+            if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
+                if (step.initialized) {
+                    int128 liquidityNet = ticks.cross(
+                        step.tickNext,
+                        zeroForOne
+                            ? state.feeGrowthGlobalX128
+                            : feeGrowthGlobal0X128,
+                        zeroForOne
+                            ? feeGrowthGlobal1X128
+                            : state.feeGrowthGlobalX128
+                    );
+
+                    if (zeroForOne) {
+                        liquidityNet = -liquidityNet;
+                    }
+
+                    state.liquidity = liquidity < 0
+                        ? state.liquidity - uint128(-liquidityNet)
+                        : state.liquidity + uint128(liquidityNet);
+
+                }   
+                state.tick = zeroForOne ? step.tickNext - 1 : step.tickNext;
+            } else if (state.sqrtPriceX96 != step.sqrtPriceStartX96) {
+                state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
             }
         }
 
